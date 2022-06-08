@@ -75,4 +75,32 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_boolean_ops() {
+        init_logging();
+        let mut runner = TestRunner::new().matching_filename_glob("*Overlay*.xml");
+        runner.run().expect("test cases failed");
+
+        // sanity check that *something* was run
+        assert!(
+            runner.failures().len() + runner.successes().len() > 0,
+            "No tests were run."
+        );
+
+        if !runner.failures().is_empty() {
+            let failure_text = runner
+                .failures()
+                .iter()
+                .map(|failure| format!("{}", failure))
+                .collect::<Vec<String>>()
+                .join("\n");
+            panic!(
+                "{} failures / {} successes in JTS test suite:\n{}",
+                runner.failures().len(),
+                runner.successes().len(),
+                failure_text
+            );
+        }
+    }
 }
