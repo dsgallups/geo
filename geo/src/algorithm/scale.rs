@@ -1,4 +1,5 @@
-use crate::{AffineOps, AffineTransform, BoundingRect, CoordFloat, CoordNum, Coordinate, Rect};
+use crate::traits::Coord;
+use crate::{AffineOps, AffineTransform, BoundingRect, CoordFloat, CoordNum, Rect};
 
 /// An affine transformation which scales a geometry up or down by a factor.
 ///
@@ -78,20 +79,10 @@ pub trait Scale<T: CoordNum> {
     /// ]);
     /// ```
     #[must_use]
-    fn scale_around_point(
-        &self,
-        x_factor: T,
-        y_factor: T,
-        origin: impl Into<Coordinate<T>>,
-    ) -> Self;
+    fn scale_around_point(&self, x_factor: T, y_factor: T, origin: impl Coord<Scalar = T>) -> Self;
 
     /// Mutable version of [`scale_around_point`](Self::scale_around_point).
-    fn scale_around_point_mut(
-        &mut self,
-        x_factor: T,
-        y_factor: T,
-        origin: impl Into<Coordinate<T>>,
-    );
+    fn scale_around_point_mut(&mut self, x_factor: T, y_factor: T, origin: impl Coord<Scalar = T>);
 }
 
 impl<T, IR, G> Scale<T> for G
@@ -128,22 +119,12 @@ where
         self.scale_around_point_mut(x_factor, y_factor, origin);
     }
 
-    fn scale_around_point(
-        &self,
-        x_factor: T,
-        y_factor: T,
-        origin: impl Into<Coordinate<T>>,
-    ) -> Self {
+    fn scale_around_point(&self, x_factor: T, y_factor: T, origin: impl Coord<Scalar = T>) -> Self {
         let affineop = AffineTransform::scale(x_factor, y_factor, origin);
         self.affine_transform(&affineop)
     }
 
-    fn scale_around_point_mut(
-        &mut self,
-        x_factor: T,
-        y_factor: T,
-        origin: impl Into<Coordinate<T>>,
-    ) {
+    fn scale_around_point_mut(&mut self, x_factor: T, y_factor: T, origin: impl Coord<Scalar = T>) {
         let affineop = AffineTransform::scale(x_factor, y_factor, origin);
         self.affine_transform_mut(&affineop)
     }
