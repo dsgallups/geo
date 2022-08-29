@@ -1,3 +1,4 @@
+use crate::traits::CoordTrait;
 use crate::{AffineOps, AffineTransform, CoordNum};
 
 pub trait Translate<T: CoordNum> {
@@ -46,10 +47,11 @@ pub trait Translate<T: CoordNum> {
     fn translate_inplace(&mut self, x_offset: T, y_offset: T);
 }
 
-impl<T, G> Translate<T> for G
+impl<T, C, G> Translate<T> for G
 where
     T: CoordNum,
-    G: AffineOps<T>,
+    C: CoordTrait<Scalar = T>,
+    G: AffineOps<Coord = C>,
 {
     fn translate(&self, x_offset: T, y_offset: T) -> Self {
         let transform = AffineTransform::translate(x_offset, y_offset);

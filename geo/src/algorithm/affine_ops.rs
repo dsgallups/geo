@@ -1,4 +1,7 @@
+use crate::num_traits::{One, Zero};
+use crate::traits::CoordTrait;
 use crate::{CoordFloat, CoordNum, Coordinate, MapCoords, MapCoordsInPlace};
+
 use std::fmt;
 
 /// Apply an [`AffineTransform`] like [`scale`](AffineTransform::scale),
@@ -35,21 +38,27 @@ use std::fmt;
 ///     (x: -0.5688687, y: 5.5688687)
 /// ], max_relative = 1.0);
 /// ```
-pub trait AffineOps<T: CoordNum> {
+pub trait AffineOps {
+    type Coord: CoordTrait;
+
     /// Apply `transform` immutably, outputting a new geometry.
     #[must_use]
-    fn affine_transform(&self, transform: &AffineTransform<T>) -> Self;
+    fn affine_transform(&self, transform: &AffineTransform<Self::Coord>) -> Self;
 
     /// Apply `transform` to mutate `self`.
-    fn affine_transform_mut(&mut self, transform: &AffineTransform<T>);
+    fn affine_transform_mut(&mut self, transform: &AffineTransform<Self::Coord>);
 }
 
-impl<T: CoordNum, M: MapCoordsInPlace<T> + MapCoords<T, T, Output = Self>> AffineOps<T> for M {
-    fn affine_transform(&self, transform: &AffineTransform<T>) -> Self {
+impl<C: CoordTrait, M: MapCoordsInPlace<Coord = C> + MapCoords<C, InCoord = C, Output = Self>>
+    AffineOps for M
+{
+    type Coord = C;
+
+    fn affine_transform(&self, transform: &AffineTransform<Self::Coord>) -> Self {
         self.map_coords(|c| transform.apply(c))
     }
 
-    fn affine_transform_mut(&mut self, transform: &AffineTransform<T>) {
+    fn affine_transform_mut(&mut self, transform: &AffineTransform<Self::Coord>) {
         self.map_coords_in_place(|c| transform.apply(c))
     }
 }
@@ -111,58 +120,61 @@ impl<T: CoordNum, M: MapCoordsInPlace<T> + MapCoords<T, T, Output = Self>> Affin
 /// ], max_relative = 1.0);
 /// ```
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct AffineTransform<T: CoordNum = f64>([[T; 3]; 3]);
+pub struct AffineTransform<C: CoordTrait = Coordinate<f64>> {
+    matrix: [[C::Scalar; 3]; 3],
+}
 
-impl<T: CoordNum> Default for AffineTransform<T> {
+impl<C: CoordTrait> Default for AffineTransform<C> {
     fn default() -> Self {
         // identity matrix
         Self::identity()
     }
 }
 
-impl<T: CoordNum> AffineTransform<T> {
+impl<C: CoordTrait> AffineTransform<C> {
     /// Create a new affine transformation by composing two `AffineTransform`s.
     ///
     /// This is a **cumulative** operation; the new transform is *added* to the existing transform.
     #[must_use]
     pub fn compose(&self, other: &Self) -> Self {
         // lol
-        Self([
+        let matrix = [
             [
-                (self.0[0][0] * other.0[0][0])
-                    + (self.0[0][1] * other.0[1][0])
-                    + (self.0[0][2] * other.0[2][0]),
-                (self.0[0][0] * other.0[0][1])
-                    + (self.0[0][1] * other.0[1][1])
-                    + (self.0[0][2] * other.0[2][1]),
-                (self.0[0][0] * other.0[0][2])
-                    + (self.0[0][1] * other.0[1][2])
-                    + (self.0[0][2] * other.0[2][2]),
+                (self.matrix[0][0] * other.matrix[0][0])
+                    + (self.matrix[0][1] * other.matrix[1][0])
+                    + (self.matrix[0][2] * other.matrix[2][0]),
+                (self.matrix[0][0] * other.matrix[0][1])
+                    + (self.matrix[0][1] * other.matrix[1][1])
+                    + (self.matrix[0][2] * other.matrix[2][1]),
+                (self.matrix[0][0] * other.matrix[0][2])
+                    + (self.matrix[0][1] * other.matrix[1][2])
+                    + (self.matrix[0][2] * other.matrix[2][2]),
             ],
             [
-                (self.0[1][0] * other.0[0][0])
-                    + (self.0[1][1] * other.0[1][0])
-                    + (self.0[1][2] * other.0[2][0]),
-                (self.0[1][0] * other.0[0][1])
-                    + (self.0[1][1] * other.0[1][1])
-                    + (self.0[1][2] * other.0[2][1]),
-                (self.0[1][0] * other.0[0][2])
-                    + (self.0[1][1] * other.0[1][2])
-                    + (self.0[1][2] * other.0[2][2]),
+                (self.matrix[1][0] * other.matrix[0][0])
+                    + (self.matrix[1][1] * other.matrix[1][0])
+                    + (self.matrix[1][2] * other.matrix[2][0]),
+                (self.matrix[1][0] * other.matrix[0][1])
+                    + (self.matrix[1][1] * other.matrix[1][1])
+                    + (self.matrix[1][2] * other.matrix[2][1]),
+                (self.matrix[1][0] * other.matrix[0][2])
+                    + (self.matrix[1][1] * other.matrix[1][2])
+                    + (self.matrix[1][2] * other.matrix[2][2]),
             ],
             [
                 // this section isn't technically necessary since the last row is invariant: [0, 0, 1]
-                (self.0[2][0] * other.0[0][0])
-                    + (self.0[2][1] * other.0[1][0])
-                    + (self.0[2][2] * other.0[2][0]),
-                (self.0[2][0] * other.0[0][1])
-                    + (self.0[2][1] * other.0[1][1])
-                    + (self.0[2][2] * other.0[2][1]),
-                (self.0[2][0] * other.0[0][2])
-                    + (self.0[2][1] * other.0[1][2])
-                    + (self.0[2][2] * other.0[2][2]),
+                (self.matrix[2][0] * other.matrix[0][0])
+                    + (self.matrix[2][1] * other.matrix[1][0])
+                    + (self.matrix[2][2] * other.matrix[2][0]),
+                (self.matrix[2][0] * other.matrix[0][1])
+                    + (self.matrix[2][1] * other.matrix[1][1])
+                    + (self.matrix[2][2] * other.matrix[2][1]),
+                (self.matrix[2][0] * other.matrix[0][2])
+                    + (self.matrix[2][1] * other.matrix[1][2])
+                    + (self.matrix[2][2] * other.matrix[2][2]),
             ],
-        ])
+        ];
+        Self { matrix }
     }
     /// Create the identity matrix
     ///
@@ -174,12 +186,12 @@ impl<T: CoordNum> AffineTransform<T> {
     /// ```
     pub fn identity() -> Self {
         Self::new(
-            T::one(),
-            T::zero(),
-            T::zero(),
-            T::zero(),
-            T::one(),
-            T::zero(),
+            C::Scalar::one(),
+            C::Scalar::zero(),
+            C::Scalar::zero(),
+            C::Scalar::zero(),
+            C::Scalar::one(),
+            C::Scalar::zero(),
         )
     }
 
@@ -217,11 +229,22 @@ impl<T: CoordNum> AffineTransform<T> {
     /// xoff = origin.x - (origin.x * xfact)
     /// yoff = origin.y - (origin.y * yfact)
     /// ```
-    pub fn scale(xfact: T, yfact: T, origin: impl Into<Coordinate<T>>) -> Self {
+    pub fn scale(
+        xfact: C::Scalar,
+        yfact: C::Scalar,
+        origin: impl Into<Coordinate<C::Scalar>>,
+    ) -> Self {
         let (x0, y0) = origin.into().x_y();
         let xoff = x0 - (x0 * xfact);
         let yoff = y0 - (y0 * yfact);
-        Self::new(xfact, T::zero(), xoff, T::zero(), yfact, yoff)
+        Self::new(
+            xfact,
+            C::Scalar::zero(),
+            xoff,
+            C::Scalar::zero(),
+            yfact,
+            yoff,
+        )
     }
 
     /// **Add** an affine transform for scaling, scaled by factors along the `x` and `y` dimensions.
@@ -230,8 +253,13 @@ impl<T: CoordNum> AffineTransform<T> {
     /// Negative scale factors will mirror or reflect coordinates.
     /// This is a **cumulative** operation; the new transform is *added* to the existing transform.
     #[must_use]
-    pub fn scaled(mut self, xfact: T, yfact: T, origin: impl Into<Coordinate<T>>) -> Self {
-        self.0 = self.compose(&Self::scale(xfact, yfact, origin)).0;
+    pub fn scaled(
+        mut self,
+        xfact: C::Scalar,
+        yfact: C::Scalar,
+        origin: impl Into<Coordinate<C::Scalar>>,
+    ) -> Self {
+        self.matrix = self.compose(&Self::scale(xfact, yfact, origin)).matrix;
         self
     }
 
@@ -243,25 +271,32 @@ impl<T: CoordNum> AffineTransform<T> {
     /// [0, 1, yoff],
     /// [0, 0, 1]]
     /// ```
-    pub fn translate(xoff: T, yoff: T) -> Self {
-        Self::new(T::one(), T::zero(), xoff, T::zero(), T::one(), yoff)
+    pub fn translate(xoff: C::Scalar, yoff: C::Scalar) -> Self {
+        Self::new(
+            C::Scalar::one(),
+            C::Scalar::zero(),
+            xoff,
+            C::Scalar::zero(),
+            C::Scalar::one(),
+            yoff,
+        )
     }
 
     /// **Add** an affine transform for translation, shifted by offsets along the `x` and `y` dimensions
     ///
     /// This is a **cumulative** operation; the new transform is *added* to the existing transform.
     #[must_use]
-    pub fn translated(mut self, xoff: T, yoff: T) -> Self {
-        self.0 = self.compose(&Self::translate(xoff, yoff)).0;
+    pub fn translated(mut self, xoff: C::Scalar, yoff: C::Scalar) -> Self {
+        self.matrix = self.compose(&Self::translate(xoff, yoff)).matrix;
         self
     }
 
     /// Apply the current transform to a coordinate
-    pub fn apply(&self, coord: Coordinate<T>) -> Coordinate<T> {
-        Coordinate {
-            x: (self.0[0][0] * coord.x + self.0[0][1] * coord.y + self.0[0][2]),
-            y: (self.0[1][0] * coord.x + self.0[1][1] * coord.y + self.0[1][2]),
-        }
+    pub fn apply(&self, coord: C) -> C {
+        C::from_xy(
+            self.matrix[0][0] * coord.x() + self.matrix[0][1] * coord.y() + self.matrix[0][2],
+            self.matrix[1][0] * coord.x() + self.matrix[1][1] * coord.y() + self.matrix[1][2],
+        )
     }
 
     /// Create a new custom transform matrix
@@ -272,37 +307,49 @@ impl<T: CoordNum> AffineTransform<T> {
     /// [d, e, yoff],
     /// [0, 0, 1]] <-- not part of the input arguments
     /// ```
-    pub fn new(a: T, b: T, xoff: T, d: T, e: T, yoff: T) -> Self {
-        Self([[a, b, xoff], [d, e, yoff], [T::zero(), T::zero(), T::one()]])
+    pub fn new(
+        a: C::Scalar,
+        b: C::Scalar,
+        xoff: C::Scalar,
+        d: C::Scalar,
+        e: C::Scalar,
+        yoff: C::Scalar,
+    ) -> Self {
+        let matrix = [
+            [a, b, xoff],
+            [d, e, yoff],
+            [C::Scalar::zero(), C::Scalar::zero(), C::Scalar::one()],
+        ];
+        Self { matrix }
     }
 }
 
-impl<T: CoordNum> fmt::Debug for AffineTransform<T> {
+impl<T: CoordNum> fmt::Debug for AffineTransform<Coordinate<T>> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AffineTransform")
-            .field("a", &self.0[0][0])
-            .field("b", &self.0[0][1])
-            .field("xoff", &self.0[1][2])
-            .field("d", &self.0[1][0])
-            .field("e", &self.0[1][1])
-            .field("yoff", &self.0[1][2])
+            .field("a", &self.matrix[0][0])
+            .field("b", &self.matrix[0][1])
+            .field("xoff", &self.matrix[1][2])
+            .field("d", &self.matrix[1][0])
+            .field("e", &self.matrix[1][1])
+            .field("yoff", &self.matrix[1][2])
             .finish()
     }
 }
 
-impl<T: CoordNum> From<[T; 6]> for AffineTransform<T> {
+impl<T: CoordNum> From<[T; 6]> for AffineTransform<Coordinate<T>> {
     fn from(arr: [T; 6]) -> Self {
         Self::new(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5])
     }
 }
 
-impl<T: CoordNum> From<(T, T, T, T, T, T)> for AffineTransform<T> {
+impl<T: CoordNum> From<(T, T, T, T, T, T)> for AffineTransform<Coordinate<T>> {
     fn from(tup: (T, T, T, T, T, T)) -> Self {
         Self::new(tup.0, tup.1, tup.2, tup.3, tup.4, tup.5)
     }
 }
 
-impl<U: CoordFloat> AffineTransform<U> {
+impl<U: CoordFloat, C: CoordTrait<Scalar = U>> AffineTransform<C> {
     /// **Create** an affine transform for rotation, using an arbitrary point as its centre.
     ///
     /// Note that this operation is only available for geometries with floating point coordinates.
@@ -335,7 +382,7 @@ impl<U: CoordFloat> AffineTransform<U> {
     /// This is a **cumulative** operation; the new transform is *added* to the existing transform.
     #[must_use]
     pub fn rotated(mut self, angle: U, origin: impl Into<Coordinate<U>>) -> Self {
-        self.0 = self.compose(&Self::rotate(angle, origin)).0;
+        self.matrix = self.compose(&Self::rotate(angle, origin)).matrix;
         self
     }
 
@@ -382,7 +429,7 @@ impl<U: CoordFloat> AffineTransform<U> {
     /// This is a **cumulative** operation; the new transform is *added* to the existing transform.
     #[must_use]
     pub fn skewed(mut self, xs: U, ys: U, origin: impl Into<Coordinate<U>>) -> Self {
-        self.0 = self.compose(&Self::skew(xs, ys, origin)).0;
+        self.matrix = self.compose(&Self::skew(xs, ys, origin)).matrix;
         self
     }
 }
@@ -398,21 +445,21 @@ mod tests {
     // [0, 0, 1]]
     #[test]
     fn matrix_multiply() {
-        let a = AffineTransform::new(1, 2, 5, 3, 4, 6);
+        let a = AffineTransform::<Coordinate<i32>>::new(1, 2, 5, 3, 4, 6);
         let b = AffineTransform::new(7, 8, 11, 9, 10, 12);
         let composed = a.compose(&b);
-        assert_eq!(composed.0[0][0], 25);
-        assert_eq!(composed.0[0][1], 28);
-        assert_eq!(composed.0[0][2], 40);
-        assert_eq!(composed.0[1][0], 57);
-        assert_eq!(composed.0[1][1], 64);
-        assert_eq!(composed.0[1][2], 87);
+        assert_eq!(composed.matrix[0][0], 25);
+        assert_eq!(composed.matrix[0][1], 28);
+        assert_eq!(composed.matrix[0][2], 40);
+        assert_eq!(composed.matrix[1][0], 57);
+        assert_eq!(composed.matrix[1][1], 64);
+        assert_eq!(composed.matrix[1][2], 87);
     }
     #[test]
     fn test_transform_composition() {
         let p0 = Point::new(0.0f64, 0.0);
         // scale once
-        let mut scale_a = AffineTransform::default().scaled(2.0, 2.0, p0);
+        let mut scale_a = AffineTransform::<Coordinate<f64>>::default().scaled(2.0, 2.0, p0);
         // rotate
         scale_a = scale_a.rotated(45.0, p0);
         // rotate back
@@ -420,11 +467,11 @@ mod tests {
         // scale up again, doubling
         scale_a = scale_a.scaled(2.0, 2.0, p0);
         // scaled once
-        let scale_b = AffineTransform::default().scaled(2.0, 2.0, p0);
+        let scale_b = AffineTransform::<Coordinate<f64>>::default().scaled(2.0, 2.0, p0);
         // scaled once, but equal to 2 + 2
-        let scale_c = AffineTransform::default().scaled(4.0, 4.0, p0);
-        assert_ne!(&scale_a.0, &scale_b.0);
-        assert_eq!(&scale_a.0, &scale_c.0);
+        let scale_c = AffineTransform::<Coordinate<f64>>::default().scaled(4.0, 4.0, p0);
+        assert_ne!(&scale_a.matrix, &scale_b.matrix);
+        assert_eq!(&scale_a.matrix, &scale_c.matrix);
     }
 
     #[test]

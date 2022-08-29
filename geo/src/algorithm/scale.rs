@@ -1,3 +1,4 @@
+use crate::traits::CoordTrait;
 use crate::{AffineOps, AffineTransform, BoundingRect, CoordFloat, CoordNum, Coordinate, Rect};
 
 /// An affine transformation which scales a geometry up or down by a factor.
@@ -94,11 +95,12 @@ pub trait Scale<T: CoordNum> {
     );
 }
 
-impl<T, IR, G> Scale<T> for G
+impl<T, C, IR, G> Scale<T> for G
 where
     T: CoordFloat,
+    C: CoordTrait<Scalar = T>,
     IR: Into<Option<Rect<T>>>,
-    G: Clone + AffineOps<T> + BoundingRect<T, Output = IR>,
+    G: Clone + AffineOps<Coord = C> + BoundingRect<T, Output = IR>,
 {
     fn scale(&self, scale_factor: T) -> Self {
         self.scale_xy(scale_factor, scale_factor)

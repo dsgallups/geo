@@ -27,11 +27,13 @@
 pub use modern::*;
 mod modern {
     pub(crate) use crate::geometry::*;
+    use crate::traits::{CoordTrait, GeometryTrait};
     pub(crate) use crate::CoordNum;
 
     /// Map a function over all the coordinates in an object, returning a new one
-    pub trait MapCoords<T, NT> {
-        type Output;
+    pub trait MapCoords<OutCoord: CoordTrait> {
+        type InCoord: CoordTrait;
+        type Output: GeometryTrait<Coord = OutCoord>;
 
         /// Apply a function to all the coordinates in a geometric object, returning a new object.
         ///
@@ -70,10 +72,7 @@ mod modern {
         ///
         /// If you want *only* to convert between numeric types (i32 -> f64) without further
         /// transformation, consider using [`Convert`](crate::Convert).
-        fn map_coords(&self, func: impl Fn(Coordinate<T>) -> Coordinate<NT> + Copy) -> Self::Output
-        where
-            T: CoordNum,
-            NT: CoordNum;
+        fn map_coords(&self, func: impl Fn(Self::InCoord) -> OutCoord + Copy) -> Self::Output;
 
         /// Map a fallible function over all the coordinates in a geometry, returning a Result
         ///
@@ -120,14 +119,13 @@ mod modern {
         /// ```
         fn try_map_coords<E>(
             &self,
-            func: impl Fn(Coordinate<T>) -> Result<Coordinate<NT>, E> + Copy,
-        ) -> Result<Self::Output, E>
-        where
-            T: CoordNum,
-            NT: CoordNum;
+            func: impl Fn(Self::InCoord) -> Result<OutCoord, E> + Copy,
+        ) -> Result<Self::Output, E>;
     }
 
-    pub trait MapCoordsInPlace<T> {
+    pub trait MapCoordsInPlace {
+        type Coord: CoordTrait;
+
         /// Apply a function to all the coordinates in a geometric object, in place
         ///
         /// # Examples
@@ -142,9 +140,7 @@ mod modern {
         ///
         /// assert_relative_eq!(p, Point::new(1010., 40.), epsilon = 1e-6);
         /// ```
-        fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T> + Copy)
-        where
-            T: CoordNum;
+        fn map_coords_in_place(&mut self, func: impl Fn(Self::Coord) -> Self::Coord + Copy);
 
         /// Map a fallible function over all the coordinates in a geometry, in place, returning a `Result`.
         ///
@@ -174,17 +170,16 @@ mod modern {
         /// ```
         fn try_map_coords_in_place<E>(
             &mut self,
-            func: impl Fn(Coordinate<T>) -> Result<Coordinate<T>, E>,
-        ) -> Result<(), E>
-        where
-            T: CoordNum;
+            func: impl Fn(Self::Coord) -> Result<Self::Coord, E>,
+        ) -> Result<(), E>;
     }
 
     //-----------------------//
     // Point implementations //
     //-----------------------//
 
-    impl<T: CoordNum, NT: CoordNum> MapCoords<T, NT> for Point<T> {
+    impl<T: CoordNum, NT: CoordNum> MapCoords<Coordinate<NT>> for Point<T> {
+        type InCoord = Coordinate<T>;
         type Output = Point<NT>;
 
         fn map_coords(
@@ -202,7 +197,9 @@ mod modern {
         }
     }
 
-    impl<T: CoordNum> MapCoordsInPlace<T> for Point<T> {
+    impl<T: CoordNum> MapCoordsInPlace for Point<T> {
+        type Coord = Coordinate<T>;
+
         fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T>) {
             self.0 = func(self.0);
         }
@@ -220,7 +217,8 @@ mod modern {
     // Line implementations //
     //----------------------//
 
-    impl<T: CoordNum, NT: CoordNum> MapCoords<T, NT> for Line<T> {
+    impl<T: CoordNum, NT: CoordNum> MapCoords<Coordinate<NT>> for Line<T> {
+        type InCoord = Coordinate<T>;
         type Output = Line<NT>;
 
         fn map_coords(
@@ -244,7 +242,9 @@ mod modern {
         }
     }
 
-    impl<T: CoordNum> MapCoordsInPlace<T> for Line<T> {
+    impl<T: CoordNum> MapCoordsInPlace for Line<T> {
+        type Coord = Coordinate<T>;
+
         fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T>) {
             self.start = func(self.start);
             self.end = func(self.end);
@@ -265,7 +265,8 @@ mod modern {
     // LineString implementations //
     //----------------------------//
 
-    impl<T: CoordNum, NT: CoordNum> MapCoords<T, NT> for LineString<T> {
+    impl<T: CoordNum, NT: CoordNum> MapCoords<Coordinate<NT>> for LineString<T> {
+        type InCoord = Coordinate<T>;
         type Output = LineString<NT>;
 
         fn map_coords(
@@ -291,7 +292,8 @@ mod modern {
         }
     }
 
-    impl<T: CoordNum> MapCoordsInPlace<T> for LineString<T> {
+    impl<T: CoordNum> MapCoordsInPlace for LineString<T> {
+        type Coord = Coordinate<T>;
         fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T>) {
             for p in &mut self.0 {
                 *p = func(*p);
@@ -313,7 +315,8 @@ mod modern {
     // Polygon implementations //
     //-------------------------//
 
-    impl<T: CoordNum, NT: CoordNum> MapCoords<T, NT> for Polygon<T> {
+    impl<T: CoordNum, NT: CoordNum> MapCoords<Coordinate<NT>> for Polygon<T> {
+        type InCoord = Coordinate<T>;
         type Output = Polygon<NT>;
 
         fn map_coords(
@@ -343,7 +346,8 @@ mod modern {
         }
     }
 
-    impl<T: CoordNum> MapCoordsInPlace<T> for Polygon<T> {
+    impl<T: CoordNum> MapCoordsInPlace for Polygon<T> {
+        type Coord = Coordinate<T>;
         fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T> + Copy) {
             self.exterior_mut(|line_string| {
                 line_string.map_coords_in_place(func);
@@ -387,7 +391,8 @@ mod modern {
     // MultiPoint implementations //
     //----------------------------//
 
-    impl<T: CoordNum, NT: CoordNum> MapCoords<T, NT> for MultiPoint<T> {
+    impl<T: CoordNum, NT: CoordNum> MapCoords<Coordinate<NT>> for MultiPoint<T> {
+        type InCoord = Coordinate<T>;
         type Output = MultiPoint<NT>;
 
         fn map_coords(
@@ -410,7 +415,8 @@ mod modern {
         }
     }
 
-    impl<T: CoordNum> MapCoordsInPlace<T> for MultiPoint<T> {
+    impl<T: CoordNum> MapCoordsInPlace for MultiPoint<T> {
+        type Coord = Coordinate<T>;
         fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T> + Copy) {
             for p in &mut self.0 {
                 p.map_coords_in_place(func);
@@ -432,7 +438,8 @@ mod modern {
     // MultiLineString implementations //
     //---------------------------------//
 
-    impl<T: CoordNum, NT: CoordNum> MapCoords<T, NT> for MultiLineString<T> {
+    impl<T: CoordNum, NT: CoordNum> MapCoords<Coordinate<NT>> for MultiLineString<T> {
+        type InCoord = Coordinate<T>;
         type Output = MultiLineString<NT>;
 
         fn map_coords(
@@ -455,7 +462,8 @@ mod modern {
         }
     }
 
-    impl<T: CoordNum> MapCoordsInPlace<T> for MultiLineString<T> {
+    impl<T: CoordNum> MapCoordsInPlace for MultiLineString<T> {
+        type Coord = Coordinate<T>;
         fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T> + Copy) {
             for p in &mut self.0 {
                 p.map_coords_in_place(func);
@@ -477,7 +485,8 @@ mod modern {
     // MultiPolygon implementations //
     //------------------------------//
 
-    impl<T: CoordNum, NT: CoordNum> MapCoords<T, NT> for MultiPolygon<T> {
+    impl<T: CoordNum, NT: CoordNum> MapCoords<Coordinate<NT>> for MultiPolygon<T> {
+        type InCoord = Coordinate<T>;
         type Output = MultiPolygon<NT>;
 
         fn map_coords(
@@ -500,7 +509,8 @@ mod modern {
         }
     }
 
-    impl<T: CoordNum> MapCoordsInPlace<T> for MultiPolygon<T> {
+    impl<T: CoordNum> MapCoordsInPlace for MultiPolygon<T> {
+        type Coord = Coordinate<T>;
         fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T> + Copy) {
             for p in &mut self.0 {
                 p.map_coords_in_place(func);
@@ -522,7 +532,8 @@ mod modern {
     // Geometry implementations //
     //--------------------------//
 
-    impl<T: CoordNum, NT: CoordNum> MapCoords<T, NT> for Geometry<T> {
+    impl<T: CoordNum, NT: CoordNum> MapCoords<Coordinate<NT>> for Geometry<T> {
+        type InCoord = Coordinate<T>;
         type Output = Geometry<NT>;
 
         fn map_coords(
@@ -570,7 +581,8 @@ mod modern {
         }
     }
 
-    impl<T: CoordNum> MapCoordsInPlace<T> for Geometry<T> {
+    impl<T: CoordNum> MapCoordsInPlace for Geometry<T> {
+        type Coord = Coordinate<T>;
         fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T> + Copy) {
             match *self {
                 Geometry::Point(ref mut x) => x.map_coords_in_place(func),
@@ -609,7 +621,8 @@ mod modern {
     // GeometryCollection implementations //
     //------------------------------------//
 
-    impl<T: CoordNum, NT: CoordNum> MapCoords<T, NT> for GeometryCollection<T> {
+    impl<T: CoordNum, NT: CoordNum> MapCoords<Coordinate<NT>> for GeometryCollection<T> {
+        type InCoord = Coordinate<T>;
         type Output = GeometryCollection<NT>;
 
         fn map_coords(
@@ -632,7 +645,8 @@ mod modern {
         }
     }
 
-    impl<T: CoordNum> MapCoordsInPlace<T> for GeometryCollection<T> {
+    impl<T: CoordNum> MapCoordsInPlace for GeometryCollection<T> {
+        type Coord = Coordinate<T>;
         fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T> + Copy) {
             for p in &mut self.0 {
                 p.map_coords_in_place(func);
@@ -654,7 +668,8 @@ mod modern {
     // Rect implementations //
     //----------------------//
 
-    impl<T: CoordNum, NT: CoordNum> MapCoords<T, NT> for Rect<T> {
+    impl<T: CoordNum, NT: CoordNum> MapCoords<Coordinate<NT>> for Rect<T> {
+        type InCoord = Coordinate<T>;
         type Output = Rect<NT>;
 
         fn map_coords(
@@ -672,7 +687,8 @@ mod modern {
         }
     }
 
-    impl<T: CoordNum> MapCoordsInPlace<T> for Rect<T> {
+    impl<T: CoordNum> MapCoordsInPlace for Rect<T> {
+        type Coord = Coordinate<T>;
         fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T>) {
             let mut new_rect = Rect::new(func(self.min()), func(self.max()));
             ::std::mem::swap(self, &mut new_rect);
@@ -692,7 +708,8 @@ mod modern {
     // Triangle implementations //
     //--------------------------//
 
-    impl<T: CoordNum, NT: CoordNum> MapCoords<T, NT> for Triangle<T> {
+    impl<T: CoordNum, NT: CoordNum> MapCoords<Coordinate<NT>> for Triangle<T> {
+        type InCoord = Coordinate<T>;
         type Output = Triangle<NT>;
 
         fn map_coords(
@@ -710,7 +727,8 @@ mod modern {
         }
     }
 
-    impl<T: CoordNum> MapCoordsInPlace<T> for Triangle<T> {
+    impl<T: CoordNum> MapCoordsInPlace for Triangle<T> {
+        type Coord = Coordinate<T>;
         fn map_coords_in_place(&mut self, func: impl Fn(Coordinate<T>) -> Coordinate<T>) {
             let mut new_triangle = Triangle::new(func(self.0), func(self.1), func(self.2));
 
@@ -843,7 +861,7 @@ pub(crate) mod deprecated {
         since = "0.21.0",
         note = "use `MapCoordsInPlace::map_coords_in_place` instead which takes a `Coordinate` instead of an (x,y) tuple"
     )]
-    pub trait MapCoordsInplace<T>: MapCoordsInPlace<T> {
+    pub trait MapCoordsInplace<T>: MapCoordsInPlace {
         /// Apply a function to all the coordinates in a geometric object, in place
         ///
         /// # Examples

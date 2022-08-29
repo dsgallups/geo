@@ -1,3 +1,4 @@
+use crate::traits::CoordTrait;
 use crate::{AffineOps, AffineTransform, BoundingRect, CoordFloat, CoordNum, Coordinate, Rect};
 
 /// An affine transformation which skews a geometry, sheared by angles along x and y dimensions.
@@ -121,11 +122,12 @@ pub trait Skew<T: CoordNum> {
     );
 }
 
-impl<T, IR, G> Skew<T> for G
+impl<T, C, IR, G> Skew<T> for G
 where
     T: CoordFloat,
+    C: CoordTrait<Scalar = T>,
     IR: Into<Option<Rect<T>>>,
-    G: Clone + AffineOps<T> + BoundingRect<T, Output = IR>,
+    G: Clone + AffineOps<Coord = C> + BoundingRect<T, Output = IR>,
 {
     fn skew(&self, degrees: T) -> Self {
         self.skew_xy(degrees, degrees)

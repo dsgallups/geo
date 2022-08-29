@@ -23,10 +23,10 @@ pub trait Convert<T, U> {
 }
 impl<G, T: CoordNum, U: CoordNum> Convert<T, U> for G
 where
-    G: MapCoords<T, U>,
+    G: MapCoords<Coordinate<U>, InCoord = Coordinate<T>>,
     U: From<T>,
 {
-    type Output = <Self as MapCoords<T, U>>::Output;
+    type Output = <Self as MapCoords<Coordinate<U>>>::Output;
 
     fn convert(&self) -> Self::Output {
         self.map_coords(|Coordinate { x, y }| Coordinate {
@@ -59,10 +59,10 @@ pub trait TryConvert<T, U> {
 }
 impl<G, T: CoordNum, U: CoordNum> TryConvert<T, U> for G
 where
-    G: MapCoords<T, U>,
+    G: MapCoords<Coordinate<U>, InCoord = Coordinate<T>>,
     U: TryFrom<T>,
 {
-    type Output = Result<<Self as MapCoords<T, U>>::Output, <U as TryFrom<T>>::Error>;
+    type Output = Result<<Self as MapCoords<Coordinate<U>>>::Output, <U as TryFrom<T>>::Error>;
 
     fn try_convert(&self) -> Self::Output {
         self.try_map_coords(|Coordinate { x, y }| {

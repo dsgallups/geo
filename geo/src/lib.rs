@@ -202,8 +202,10 @@ pub use geometry::*;
 /// This module includes all the functions of geometric calculations
 pub mod algorithm;
 mod geometry_cow;
+pub mod traits;
 mod types;
 mod utils;
+
 pub(crate) use geometry_cow::GeometryCow;
 
 #[cfg(test)]

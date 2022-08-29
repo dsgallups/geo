@@ -1,5 +1,6 @@
 use crate::algorithm::{AffineOps, AffineTransform, BoundingRect, Centroid};
 use crate::geometry::*;
+use crate::traits::CoordTrait;
 use crate::CoordFloat;
 
 /// Rotate a geometry around a point by an angle, in degrees.
@@ -109,12 +110,13 @@ where
     }
 }
 
-impl<G, IP, IR, T> Rotate<T> for G
+impl<G, IP, IR, T, C> Rotate<T> for G
 where
     T: CoordFloat,
+    C: CoordTrait<Scalar = T>,
     IP: Into<Option<Point<T>>>,
     IR: Into<Option<Rect<T>>>,
-    G: Clone + Centroid<Output = IP> + BoundingRect<T, Output = IR> + AffineOps<T>,
+    G: Clone + Centroid<Output = IP> + BoundingRect<T, Output = IR> + AffineOps<Coord = C>,
 {
     fn rotate_around_centroid(&self, degrees: T) -> Self {
         let point = match self.centroid().into() {
