@@ -274,9 +274,9 @@ macro_rules! impl_rstar_geometry {
     ($rstar:ident) => {
         impl<T> $rstar::RTreeObject for Geometry<T>
         where
-            T: ::num_traits::Float + ::$rstar::RTreeNum,
+            T: $crate::CoordFloat + ::$rstar::RTreeNum,
         {
-            type Envelope = ::$rstar::AABB<Point<T>>;
+            type Envelope = $crate::Rect<T>;
 
             fn envelope(&self) -> Self::Envelope {
                 match self {

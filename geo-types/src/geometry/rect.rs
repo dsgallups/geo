@@ -383,9 +383,17 @@ static RECT_INVALID_BOUNDS_ERROR: &str = "Failed to create Rect: 'min' coordinat
 #[cfg(any(feature = "rstar_0_8", feature = "rstar_0_9"))]
 macro_rules! impl_rstar_rect {
     ($rstar:ident) => {
+        impl<T> $rstar::Envelope for Rect<T>
+        where
+            T: $crate::CoordFloat + ::$rstar::RTreeNum,
+        {
+            type Point = $crate::Point<T>;
+            // ... TODO implement a lot of methods
+        }
+
         impl<T> $rstar::RTreeObject for Rect<T>
         where
-            T: ::num_traits::Float + ::$rstar::RTreeNum,
+            T: $crate::CoordFloat + ::$rstar::RTreeNum,
         {
             type Envelope = ::$rstar::AABB<Point<T>>;
 
